@@ -1,14 +1,19 @@
+/* Project based on Inglebard websocket work https://github.com/Inglebard/esp32cam-relay.git */
 #include <Arduino.h>
 #include "WiFi.h"
 #include "esp_camera.h"
 #include <ArduinoJson.h>
 #include <WebSocketsClient.h>
+#if __has_include("secrets.h")
+  #include "secrets.h"
+#else
+  const char* ssid = "YourSSID";
+  const char* password = "YourPassword";
+  #define IPSERVER "192.168.0.2"  // IP of the server where you want to send the data
+  #define PORTSERVER 2           // Port of the server where you want to send the data
+#endif
 
 #define CAMERA_NUMBER_3
-#define IPSERVER "192.168.68.120"
-#define PORTSERVER 5000
-#define FRAMESIZE 400
-#define TIMEOUT 300
 
 //
 // WARNING!!! PSRAM IC required for UXGA resolution and high JPEG quality
@@ -24,15 +29,6 @@
 #define LED_FLASH 4
 #include "camera_pins.h"
 
-struct frameToSend
-{
-  bool status;
-  uint8_t *data;
-  int size;
-};
-
-const char* ssid = "Inspector de Hornos";
-const char* password = "V3d3t3c!";
 bool toggleLedRed = false;
 bool status = false;
 
@@ -87,13 +83,6 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
         break;
     }
 }//webSocketEvent
-
-void sendFrame( void * parameter ) {
-  frameToSend *frame = (frameToSend *)parameter;
-  webSocket.sendBIN(frame->data, frame->size);
-  frame->status = false;
-  vTaskDelete(NULL);
-}//sendFrame
 
 void setupCamera()
 {
@@ -188,97 +177,13 @@ void loop() {
         messageTimestamp = now;
 
         camera_fb_t * fb = NULL;
-        // timeCleanFB = millis()-now;
+        
         // Take Picture with Camera
         fb = esp_camera_fb_get();
-        // timeGetFB = millis()-now;
         if(!fb) {
           return;
         }
         webSocket.sendBIN(fb->buf, fb->len);
-        // int numFrames = fb->len / FRAMESIZE;
-        // if(fb->len % FRAMESIZE > 0){
-        //   numFrames++;
-        // }
-        // webSocket.sendTXT("Start");
-        // Serial.println("Start");
-        // bool timeoutFlag = false;
-        // for(int i = 0; i < numFrames; i++){
-        //   Serial.printf("%d ",i);
-        //   frameToSend frame;
-        //   TaskHandle_t taskHandle = NULL;
-        //   frame.status = true;
-        //   frame.data = fb->buf + (i*FRAMESIZE);
-        //   if(i == numFrames-1){
-        //     frame.size = fb->len % FRAMESIZE;
-        //   }else{
-        //     frame.size = FRAMESIZE;
-        //   }
-        //   xTaskCreate(
-        //     sendFrame, /* Function to implement the task */
-        //     "Frame", /* Name of the task */
-        //     10000,  /* Stack size in words */
-        //     &frame,  /* Task input parameter */
-        //     0,  /* Priority of the task */
-        //     &taskHandle  /* Task handle. */
-        //   );
-        //   uint16_t timeout = millis();
-        //   while(frame.status){
-        //     delay(10);
-        //     Serial.print(".");
-        //     if(millis() - timeout > TIMEOUT){
-        //       Serial.println("\n\rTimeout");
-        //       vTaskDelete(taskHandle);
-        //       timeoutFlag = true;
-        //       break;
-        //     }
-        //   }
-        //   if(timeoutFlag){
-        //     Serial.println("Disconneting Socket");
-        //     webSocket.disconnect();
-        //     Serial.println("Socket disconnected");
-        //     break;
-        //   }
-        // }
-        // if(!timeoutFlag){
-        //   Serial.println("\n\rEnd");
-        //   webSocket.sendTXT("End");
-        // }
-        // timeSendBIN = millis()-now;
         esp_camera_fb_return(fb);
-        // timeReturnFB = millis()-now;
     }
-    // if(timeReturnFB > 300){
-    //   Serial.printf("WSLoop %dms, CleanFB %dms, GetFB %dms, SendBIN %dms, ReturnFB %dms\n\r",WSLoop, timeCleanFB,timeGetFB,timeSendBIN,timeReturnFB);
-    // }
-    // int timeBetweenLoops = millis() - lastLoop;
-    // Serial.printf("TimeLoops %dms\n\r",timeBetweenLoops);
-    // lastLoop = millis();
-    // if((now - ledTimer > 300) && toggleLedRed){
-    //   ledTimer = now;
-    //   static bool aux = false;
-    //   #if defined(CAMERA_NUMBER_1)
-    //     digitalWrite(LED_RED, aux);
-    //   #else
-    //     static int ledRedStatus = 0;
-    //     if(aux){
-    //       #if defined(CAMERA_NUMBER_2)
-    //         if(ledRedStatus < 2){
-    //           digitalWrite(LED_RED, 0);
-    //         }
-    //       #elif defined(CAMERA_NUMBER_3)
-    //         if(ledRedStatus < 3){
-    //           digitalWrite(LED_RED, 0);
-    //         }
-    //       #endif
-    //       ledRedStatus++;
-    //     }else{
-    //       digitalWrite(LED_RED, 1);
-    //     }
-    //     if(ledRedStatus > 4){
-    //       ledRedStatus = 0;
-    //     }
-    //   #endif
-    //   aux = !aux;
-    // }
 }
