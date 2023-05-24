@@ -1,4 +1,5 @@
 /* Project based on Inglebard websocket work https://github.com/Inglebard/esp32cam-relay.git */
+
 #include <Arduino.h>
 #include "WiFi.h"
 #include "esp_camera.h"
@@ -13,7 +14,7 @@
   #define PORTSERVER 2           // Port of the server where you want to send the data
 #endif
 
-#define CAMERA_NUMBER_3
+#define CAMERA_NUMBER_1
 
 //
 // WARNING!!! PSRAM IC required for UXGA resolution and high JPEG quality
@@ -56,6 +57,7 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
   switch(type) {
     case WStype_DISCONNECTED:
       Serial.printf("[WSc] Disconnected!\n");
+      digitalWrite(LED_FLASH, 0);
       if(status){
         status = false;
       }
@@ -68,18 +70,24 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
     }
       break;
     case WStype_TEXT:
-      Serial.printf("[WSc] get text: %s\n", payload);
+      if(strcmp((char*)payload, "No clients") == 0){
+        digitalWrite(LED_FLASH, 0);
+      }else if(strcmp((char*)payload, "Client connected") == 0){
+        digitalWrite(LED_FLASH, 1);
+      }else{
+        Serial.printf("[WSc] get text: %s\n", payload);
+      }
       break;
     case WStype_BIN:
       Serial.printf("[WSc] get binary length: %u\n", length);
       break;
     case WStype_PING:
         // pong will be send automatically
-        Serial.printf("[WSc] get ping\n");
+        // Serial.printf("[WSc] get ping\n");
         break;
     case WStype_PONG:
         // answer to a ping we send
-        Serial.printf("[WSc] get pong\n");
+        // Serial.printf("[WSc] get pong\n");
         break;
     }
 }//webSocketEvent
@@ -119,6 +127,8 @@ void setupCamera()
       delay(500);
       ESP.restart();
       return;
+    }else{
+      Serial.println("Camera init OK");
     }
 }
 
@@ -169,10 +179,8 @@ void loop() {
     uint64_t now = millis();
     webSocket.loop();
     if(!webSocket.isConnected()){
-      digitalWrite(LED_FLASH, 0);
       return;
     }
-    digitalWrite(LED_FLASH, 1);
     if(now - messageTimestamp > 30) {
         messageTimestamp = now;
 
@@ -181,8 +189,10 @@ void loop() {
         // Take Picture with Camera
         fb = esp_camera_fb_get();
         if(!fb) {
+          Serial.println("Camera capture failed");
           return;
         }
+        Serial.printf("Picture taken! Size: %u\n\r", fb->len);
         webSocket.sendBIN(fb->buf, fb->len);
         esp_camera_fb_return(fb);
     }
